@@ -1,33 +1,44 @@
 {
-  "manifest_version": 3,
-  "name": "InboxListener",
-  "version": "1.0.0",
-  "description": "Chrome Extension that monitors Outlook inbox for new emails and logs to console",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "identity"
-  ],
-  "host_permissions": [
-    "https://graph.microsoft.com/*",
-    "https://login.microsoftonline.com/*"
-  ],
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "InboxListener"
-  },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
-  },
-  "oauth2": {
-    "client_id": "YOUR_AZURE_CLIENT_ID",
-    "scopes": [
-      "https://graph.microsoft.com/Mail.Read",
-      "https://graph.microsoft.com/User.Read"
-    ]
-  }
+    "manifest_version": 3,
+    "name": "Outlook Inbox Scraper",
+    "version": "1.5",
+    "description": "Notifies on new emails in Outlook by scraping the inbox DOM.",
+    "permissions": [
+        "notifications",
+        "storage"
+    ],
+    "host_permissions": [
+        "*://outlook.live.com/*",
+        "*://outlook.office.com/*",
+        "*://outlook.office365.com/*"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "icon.png",
+            "48": "icon.png",
+            "128": "icon.png"
+        }
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://outlook.live.com/*",
+                "*://outlook.office.com/*",
+                "*://outlook.office365.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "icons": {
+        "16": "icon.png",
+        "48": "icon.png",
+        "128": "icon.png"
+    }
 }
