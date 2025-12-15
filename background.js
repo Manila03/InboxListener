@@ -1,46 +1,11 @@
 // Background Service Worker
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+import { GoogleGenAI } from './libs/google-gen-ai.js';
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'NEW_MAIL') {
         handleNewMail(message.data);
     }
 });
-
-async function callGemini(apiKey, products, email) {
-    const productList = Object.entries(products).map(([name, price]) => `- ${name}: $${price}`).join('\n');
-
-    const prompt = `
-  You are a helpful sales assistant.
-  Analyze the following email to see if the user is asking about any of our products.
-  
-  Our Products:
-  ${productList}
-  
-  Email Subject: ${email.sender || "Unknown"}
-  Email Body: 
-  ${email.subject || ""}
-  ${email.body || ""}
-  
-  Instructions:
-  1. Detect if the email mentions any of our products (use semantic matching, handle synonyms).
-  2. If products are found, generate a polite, professional response in Spanish properly quoting the prices from our list.
-  3. If NO products are found, output "NO_MATCH".
-  4. Keep the response concise.
-  `;
-
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-        })
-    });
-
-    const json = await response.json();
-    if (json.error) throw new Error(json.error.message);
-    return json.candidates?.[0]?.content?.parts?.[0]?.text || "Error generating response";
-}
 
 async function handleNewMail(data) {
     // Check storage for API Key and Products
@@ -53,8 +18,43 @@ async function handleNewMail(data) {
         return;
     }
 
+    const productList = Object.entries(productMap).map(([name, price]) => `- ${name}: $${price}`).join('\n');
+
+    const prompt = `
+  You are a helpful sales assistant.
+  Analyze the following email to see if the user is asking about any of our products.
+  
+  Our Products:
+  ${productList}
+  
+  Email Subject: ${data.sender || "Unknown"}
+  Email Body: 
+  ${data.subject || ""}
+  ${data.body || ""}
+  
+  Instructions:
+  1. Detect if the email mentions any of our products (use semantic matching, handle synonyms).
+  2. If products are found, generate a polite, professional response in Spanish properly quoting the prices from our list.
+  3. If NO products are found, output "NO_MATCH".
+  4. Keep the response concise.
+  `;
+    console.log("Prompt:", prompt);
     try {
-        const aiResponse = await callGemini(geminiApiKey, productMap, data);
+        const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+        // Optional: Count tokens for logging/debugging
+        // const countTokensResponse = await ai.models.countTokens({
+        //   model: "gemini-2.0-flash",
+        //   contents: prompt,
+        // });
+        // console.log("Token count:", countTokensResponse.totalTokens);
+
+        const result = await ai.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: prompt,
+        });
+
+        const aiResponse = result.response.text();
 
         if (aiResponse.includes("NO_MATCH")) {
             console.log("No partial match found by AI.");
@@ -70,6 +70,8 @@ async function handleNewMail(data) {
         }
     } catch (e) {
         console.error("Gemini Error:", e);
+        // Fallback to basic notification if AI fails
+        createNotification(data.sender, data.subject, data.preview);
         createNotification("Gemini Error", e.message, "Check API Key");
     }
 }
