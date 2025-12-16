@@ -8,7 +8,7 @@ let listObserver = null;
 const SELECTORS = {
     emailList: '[role="listbox"]',
     emailItem: '[role="option"]',
-    readingPane: '[id^="UniqueMessageBody"], .allowTextSelection, [data-test-id="mailMessageBodyContainer"], [role="document"]'
+    readingPane: '#UniqueMessageBody_14 div[dir]'
 };
 
 function init() {
@@ -136,23 +136,42 @@ async function clickAndScrape(node, metadata) {
     let fullBody = "";
 
     if (bodyContainer) {
-        console.log(`[Outlook Scraper] Found body container: ${bodyContainer.id || bodyContainer.className}`);
+        console.log(
+            `[Outlook Scraper] Found body container: ${bodyContainer.id || bodyContainer.className}`
+        );
         bodyContainer.style.border = "2px solid green";
 
-        // Strategy A: Direct innerText
-        fullBody = bodyContainer.innerText;
+        let paragraphs = [];
 
-        // Strategy B: Deep dive for the actual message text div if the top level is empty or cluttered
-        // The user snippet shows the text is often in a div with dir="auto" or specific classes inside the container
-        if (!fullBody || fullBody.length < 5) {
-            const deepTextNode = bodyContainer.querySelector('div[dir="auto"], .x_gmail_quote, .rps_a050');
-            if (deepTextNode) {
-                fullBody = deepTextNode.innerText || deepTextNode.textContent;
-            } else {
-                // Fallback to textContent if innerText was empty due to visibility
-                fullBody = bodyContainer.textContent;
+        // Outlook/Gmail mail bodies consistently wrap text in a div with dir attribute
+        const textWrapper = bodyContainer.querySelector('div[dir]');
+
+        if (textWrapper) {
+            for (const div of textWrapper.children) {
+                // Stop at signature
+                if (div.id === 'x_Signature') break;
+
+                const text = div.innerText?.trim();
+
+                if (
+                    text &&
+                    text !== '\u00A0' &&          // nbsp
+                    !/^[-–—]*$/.test(text)        // separators
+                ) {
+                    paragraphs.push(text);
+                }
             }
         }
+
+        // Final body assembly
+        fullBody = paragraphs.join('\n\n');
+
+        // Absolute fallback (should rarely happen)
+        if (!fullBody || fullBody.length < 5) {
+            console.warn('[Outlook Scraper] Paragraph strategy failed, falling back to textContent');
+            fullBody = bodyContainer.textContent || '';
+        }
+
     } else {
         console.warn('[Outlook Scraper] Reading pane not found.');
         fullBody = "Could not find body element";
