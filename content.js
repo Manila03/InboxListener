@@ -8,7 +8,7 @@ let listObserver = null;
 const SELECTORS = {
     emailList: '[role="listbox"]',
     emailItem: '[role="option"]',
-    readingPane: '#UniqueMessageBody_14 div[dir]'
+    readingPane: 'div[data-test-id="mailMessageBodyContainer"]'
 };
 
 function init() {
@@ -143,33 +143,38 @@ async function clickAndScrape(node, metadata) {
 
         let paragraphs = [];
 
-        // Outlook/Gmail mail bodies consistently wrap text in a div with dir attribute
-        const textWrapper = bodyContainer.querySelector('div[dir]');
+        // Collect ALL text-bearing divs
+        const textDivs = bodyContainer.querySelectorAll('div[dir]');
 
-        if (textWrapper) {
-            for (const div of textWrapper.children) {
-                // Stop at signature
-                if (div.id === 'x_Signature') break;
+        for (const div of textDivs) {
+            // Skip quoted replies
+            if (div.closest('.x_gmail_quote')) continue;
 
-                const text = div.innerText?.trim();
+            // Skip signature
+            if (div.id === 'x_Signature') break;
 
-                if (
-                    text &&
-                    text !== '\u00A0' &&          // nbsp
-                    !/^[-–—]*$/.test(text)        // separators
-                ) {
-                    paragraphs.push(text);
-                }
+            const text = div.innerText?.trim();
+
+            if (
+                text &&
+                text !== '\u00A0' &&
+                !/^[-–—]*$/.test(text)
+            ) {
+                paragraphs.push(text);
             }
         }
 
-        // Final body assembly
+        // Deduplicate consecutive duplicates (Outlook sometimes repeats)
+        paragraphs = paragraphs.filter(
+            (text, i, arr) => i === 0 || text !== arr[i - 1]
+        );
+
         fullBody = paragraphs.join('\n\n');
 
-        // Absolute fallback (should rarely happen)
+        // Fallback if everything failed
         if (!fullBody || fullBody.length < 5) {
             console.warn('[Outlook Scraper] Paragraph strategy failed, falling back to textContent');
-            fullBody = bodyContainer.textContent || '';
+            fullBody = bodyContainer.innerText || bodyContainer.textContent || '';
         }
 
     } else {
@@ -178,6 +183,7 @@ async function clickAndScrape(node, metadata) {
     }
 
     fullBody = fullBody.trim();
+
     console.log('[Outlook Scraper] Final Scraped Body Length:', fullBody.length);
     console.log('[Outlook Scraper] Body Preview:', fullBody.substring(0, 50));
 

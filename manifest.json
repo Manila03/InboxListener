@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Outlook Inbox Scraper",
-    "version": "2.3",
+    "version": "2.7",
     "description": "Notifies on new emails in Outlook by scraping the inbox DOM.",
     "permissions": [
         "notifications",
@@ -21,8 +21,7 @@
         }
     },
     "background": {
-        "service_worker": "background.js",
-        "type": "module"
+        "service_worker": "background.js"
     },
     "content_scripts": [
         {
